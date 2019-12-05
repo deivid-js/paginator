@@ -56,7 +56,11 @@ class Table {
 
     makeSkeleton() {
         const searchButtonId = this.id + '-search-button';
+        const totalPageId = this.id + '-total-page-counter';
         const totalId = this.id + '-total-counter';
+        const previousPageId = this.id + '-prev-page';
+        const nextPageId = this.id + '-next-page';
+        const currentPageId = this.id + '-current-page';
 
         fillById(this.target, `
             <div class="data-table-filter">
@@ -76,7 +80,17 @@ class Table {
                 <div id="not-search">Nenhuma busca realizada</div>
             </div>
             <div class="data-table-footer">
-                <span id="${totalId}">0</span> registro(s) encontrado(s)
+                <div>
+                    <i id="${previousPageId}" class="fas fa-angle-left fa-2x" title="Página anterior"></i>
+                    &nbsp;&nbsp;
+                    <input type="text" disabled class="page-number" id="${currentPageId}" value="1" />
+                    &nbsp;&nbsp;
+                    <i id="${nextPageId}" class="fas fa-angle-right fa-2x" title="Próxima página"></i>
+                </div>
+                <div>
+                    Exibindo&nbsp;<span id="${totalPageId}">0</span>
+                    &nbsp; de &nbsp;<span id="${totalId}">0</span>&nbsp;&nbsp;
+                </div>
             </div>
         `);
 
@@ -91,10 +105,15 @@ class Table {
 
     async load() {
         loadingStart();
+
+        this.resetSelectedRow();
         
         try {
-            const res = await api.get(`${this.route}/index?__c=${this.getClient()}`);
-            const { data, current_page, total } = res.data;
+            const res = await api.get(`${this.route}/index?__c=${this.getClient()}&page=${this.page}`);
+
+            const { data, total, to, next_page_url, prev_page_url } = res.data;
+
+            this.notifyPaginator(prev_page_url, next_page_url);
 
             this.data = data;
 
@@ -106,14 +125,52 @@ class Table {
                 item.addEventListener('click', () => this.onClickRow(item))
             ));
 
-            const totalId = this.id + '-total-counter';
-
-            fillById(totalId, total);
+            fillById(`${this.id}-total-page-counter`, to);
+            fillById(`${this.id}-total-counter`, total);
         } catch(e) {
             loadAlert('Erro na requisição');
         }
 
+        this.notifyActions();
+
         loadingDestroy();
+    }
+
+    loadPrevious() {
+        this.page--;
+
+        this.load();
+    }
+
+    loadNext() {
+        this.page++;
+
+        this.load();
+    }
+
+    notifyPaginator(prev, next) {
+        const currentPageId = this.id + '-current-page';
+        const prevId = `${this.id}-prev-page`;
+        const nextId = `${this.id}-next-page`;
+
+        recreateElement(byId(prevId));
+        recreateElement(byId(nextId));
+
+        if (prev) {
+            addEventById(prevId, 'click', () => this.loadPrevious());
+        }
+
+        if (next) {
+            addEventById(nextId, 'click', () => this.loadNext());
+        }
+
+        byId(currentPageId).value = this.page;
+    }
+
+    parseKey(key) {
+        return JSON.parse(
+            atob(key)
+        );
     }
 
     getActions() {
